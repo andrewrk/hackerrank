@@ -50,25 +50,27 @@ func (w * world) clone() * world {
 }
 
 func (w * world) hideInvisible() {
-	for y := 0; y < w.botPos.y - 1; y++ {
-		w.hideInvisibleRow(y)
-	}
-	for y := w.botPos.y + 2; y < len(w.cells); y++ {
-		w.hideInvisibleRow(y)
-	}
-}
-
-func (w * world) hideInvisibleRow(y int) {
-	for x := 0; x < w.botPos.x - 1; x++ {
-		w.hide(x, y)
-	}
-	for x := w.botPos.x + 2; x < len(w.cells[0]); x++ {
-		w.hide(x, y)
+	for y, row := range(w.cells) {
+		for x := range(row) {
+			if abs(w.botPos.x - x) > 1 || abs(w.botPos.y - y) > 1 {
+				row[x] = 'o'
+			}
+		}
 	}
 }
 
-func (w * world) hide(x, y int) {
-	w.cells[y][x] = 'o'
+func (w * world) print() {
+	fmt.Println(w.botPos)
+	printMoveMap(w.cells)
+}
+
+func printMoveMap(moveMap[][]rune) {
+	for _, row := range(moveMap) {
+		for _, char := range(row) {
+			fmt.Print(string(char))
+		}
+		fmt.Print("\n")
+	}
 }
 
 func parsePos(line string) (*pos, error) {
@@ -268,15 +270,6 @@ func buildMovementMap(cells [][]rune) [][]rune {
 	return moveMap
 }
 
-func printMoveMap(moveMap[][]rune) {
-	for _, row := range(moveMap) {
-		for _, char := range(row) {
-			fmt.Print(string(char))
-		}
-		fmt.Print("\n")
-	}
-}
-
 func computeCost(moveMap[][]rune, w * world) int {
 	sum := 0
 	realSimWorld := w.clone() // the real data
@@ -331,7 +324,8 @@ func computeNextMove(moveMap[][]rune, w * world) int {
 		simWorld.cells[dirtyCell.y][dirtyCell.x] = '-'
 		cost += computeCost(moveMap, simWorld)
 		if (lowestCostCell == nil || cost < lowestCost) {
-			lowestCostCell = &dirtyCell
+			var clone pos = dirtyCell
+			lowestCostCell = &clone
 			lowestCost = cost
 		}
 	}

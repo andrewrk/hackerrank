@@ -19,6 +19,58 @@ type world struct {
 	cells [][]rune
 }
 
+func (w * world) dirtyCells() []pos {
+	cells := make([]pos, 0)
+	var it pos
+	for it.y = 0; it.y < len(w.cells); it.y++ {
+		for it.x = 0; it.x < len(w.cells[it.y]); it.x++ {
+			if w.cells[it.y][it.x] == 'd' {
+				cells = append(cells, it)
+			}
+		}
+	}
+
+	return cells
+}
+
+func (w * world) clone() * world {
+	newStruct := *w
+	posClone := *newStruct.botPos
+	newStruct.botPos = &posClone
+
+	newStruct.cells = make([][]rune, len(w.cells))
+	for y, row := range(w.cells) {
+		newStruct.cells[y] = make([]rune, len(row))
+		for x, char := range(row) {
+			newStruct.cells[y][x] = char
+		}
+	}
+
+	return &newStruct;
+}
+
+func (w * world) hideInvisible() {
+	for y := 0; y < w.botPos.y - 1; y++ {
+		w.hideInvisibleRow(y)
+	}
+	for y := w.botPos.y + 2; y < len(w.cells); y++ {
+		w.hideInvisibleRow(y)
+	}
+}
+
+func (w * world) hideInvisibleRow(y int) {
+	for x := 0; x < w.botPos.x - 1; x++ {
+		w.hide(x, y)
+	}
+	for x := w.botPos.x + 2; x < len(w.cells[0]); x++ {
+		w.hide(x, y)
+	}
+}
+
+func (w * world) hide(x, y int) {
+	w.cells[y][x] = 'o'
+}
+
 func parsePos(line string) (*pos, error) {
 	slice := strings.Split(strings.TrimSpace(line), " ")
 	// flip x and y
@@ -58,10 +110,6 @@ func readWorld(stream io.Reader) (*world, error) {
 	return w, nil
 }
 
-type posMatch struct {
-	p * pos
-	distance int
-}
 
 func abs(x int) int {
 	if x < 0 {
@@ -140,6 +188,14 @@ vvvvvvvvvvv
 const (
 	STATE_RIGHT = iota
 	STATE_LEFT
+)
+
+const (
+	MOVE_LEFT = iota
+	MOVE_RIGHT
+	MOVE_UP
+	MOVE_DOWN
+	MOVE_CLEAN
 )
 
 func buildMovementMap(cells [][]rune) [][]rune {
@@ -221,49 +277,87 @@ func printMoveMap(moveMap[][]rune) {
 	}
 }
 
+func computeCost(moveMap[][]rune, w * world) int {
+	sum := 0
+	realSimWorld := w.clone() // the real data
+	for len(realSimWorld.dirtyCells()) > 0 {
+		simWorld := realSimWorld.clone()
+		simWorld.hideInvisible()
+		switch computeNextMove(moveMap, simWorld) {
+		case MOVE_CLEAN:
+			realSimWorld.cells[realSimWorld.botPos.y][realSimWorld.botPos.x] = '-'
+		case MOVE_LEFT:
+			realSimWorld.botPos.x -= 1
+		case MOVE_RIGHT:
+			realSimWorld.botPos.x += 1
+		case MOVE_UP:
+			realSimWorld.botPos.y -= 1
+		case MOVE_DOWN:
+			realSimWorld.botPos.y += 1
+		}
+		sum += 1
+	}
+	return sum
+}
+
+func computeNextMove(moveMap[][]rune, w * world) int {
+	// always clean if we're in a dirty cell
+	if w.cells[w.botPos.y][w.botPos.x] == 'd' {
+		return MOVE_CLEAN;
+	}
+	// collect the known dirty spots
+	dirtyCells := w.dirtyCells()
+
+	if len(dirtyCells) == 0 {
+		// no dirty spot visible. follow a prescribed track to hit all the cells
+		switch moveMap[w.botPos.y][w.botPos.x] {
+		case '>': return MOVE_RIGHT
+		case '<': return MOVE_LEFT
+		case '^': return MOVE_UP
+		case 'v': return MOVE_DOWN
+		}
+		panic("unknown movemap value")
+	}
+
+	// figure out which dirty cell to go after
+	var lowestCostCell * pos = nil
+	var lowestCost int
+	for _, dirtyCell := range(dirtyCells) {
+		cost := rectilinearDist(&dirtyCell, w.botPos)
+		// create a world in which we have moved to
+		// and cleaned that cell
+		simWorld := w.clone()
+		simWorld.botPos = &dirtyCell
+		simWorld.cells[dirtyCell.y][dirtyCell.x] = '-'
+		cost += computeCost(moveMap, simWorld)
+		if (lowestCostCell == nil || cost < lowestCost) {
+			lowestCostCell = &dirtyCell
+			lowestCost = cost
+		}
+	}
+	if w.botPos.x < lowestCostCell.x {
+		return MOVE_RIGHT
+	} else if w.botPos.x > lowestCostCell.x {
+		return MOVE_LEFT
+	} else if w.botPos.y < lowestCostCell.y {
+		return MOVE_DOWN
+	} else if w.botPos.y > lowestCostCell.y {
+		return MOVE_UP
+	}
+	panic("shouldn't get here")
+}
+
 func main() {
 	w, err := readWorld(os.Stdin)
 	if err != nil { panic(err) }
-	// always clean if we're in a dirty cell
-	if w.cells[w.botPos.y][w.botPos.x] == 'd' {
-		fmt.Println("CLEAN")
-		return;
-	}
-	// if we see a dirty spot, go clean it
-	closest := new(posMatch)
-	var it pos
-	for it.y = 0; it.y < len(w.cells); it.y++ {
-		for it.x = 0; it.x < len(w.cells[it.y]); it.x++ {
-			if w.cells[it.y][it.x] == 'd' {
-				// dirty
-				dist := rectilinearDist(&it, w.botPos)
-				if closest.p == nil || dist < closest.distance {
-					var clone pos = it
-					closest.p = &clone
-					closest.distance = dist
-				}
-			}
-		}
-	}
-	if closest.p != nil {
-		if w.botPos.x < closest.p.x {
-			fmt.Println("RIGHT")
-		} else if w.botPos.x > closest.p.x {
-			fmt.Println("LEFT")
-		} else if w.botPos.y < closest.p.y {
-			fmt.Println("DOWN")
-		} else if w.botPos.y > closest.p.y {
-			fmt.Println("UP")
-		}
-		return
-	}
-	// no dirty spot visible. follow a prescribed track to hit all the cells
 	moveMap := buildMovementMap(w.cells)
-	switch moveMap[w.botPos.y][w.botPos.x] {
-	case '>': fmt.Println("RIGHT")
-	case '<': fmt.Println("LEFT")
-	case '^': fmt.Println("UP")
-	case 'v': fmt.Println("DOWN")
+	switch computeNextMove(moveMap, w) {
+	case MOVE_LEFT: fmt.Println("LEFT")
+	case MOVE_RIGHT: fmt.Println("RIGHT")
+	case MOVE_UP: fmt.Println("UP")
+	case MOVE_DOWN: fmt.Println("DOWN")
+	case MOVE_CLEAN: fmt.Println("CLEAN")
 	}
+
 }
 

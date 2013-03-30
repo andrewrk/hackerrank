@@ -216,6 +216,7 @@ func (original * world) scoreSum(stepCount int) (int, pos) {
 
 	for y, row := range(original.cells) {
 		for x, c := range(row) {
+			if timeOver() { break }
 			if c.value == DEAD && c.useful() {
 				// try placing here
 				w := original.clone()

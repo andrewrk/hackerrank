@@ -247,7 +247,7 @@ func (original * world) scoreSum(stepCount int) (int, pos) {
 }
 
 var startTime = time.Now()
-const timeLimit = float64(100) //float64(5.0)
+const timeLimit = float64(5) //float64(5.0)
 
 func timeOver() bool {
 	timePassed := time.Since(startTime)
@@ -262,6 +262,7 @@ func (w * world) miniMaxMove(stepCount int, turnCount int) (int, pos) {
 	var bestPos pos
 	for y, row := range(w.cells) {
 		for x, c := range(row) {
+			if timeOver() { break }
 			if c.value == DEAD && c.useful() {
 				// set up the board for the next turn
 				nw := w.clone()
@@ -301,7 +302,7 @@ func main () {
 		_, move = w.miniMaxMove(500, 0)
 	} else {
 		// use minimax to limit the opponent's options
-		_, move = w.miniMaxMove(8, 1)
+		_, move = w.miniMaxMove(4, 1)
 	}
 	move.print()
 }

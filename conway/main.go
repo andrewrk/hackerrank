@@ -201,36 +201,29 @@ func readWorld(stream io.Reader) (*world, error) {
 	return w, nil
 }
 
-func main () {
-	timeLimit := float64(5.0)
-	startTime := time.Now()
-
-	original, err := readWorld(os.Stdin)
-	if err != nil { panic(err) }
+func (original * world) scoreSum(stepCount int) (int, pos) {
 	// try every possibility and check how it performs
-	sg := NewScoreGrid(len(original.cells[0]), len(original.cells))
+	//sg := NewScoreGrid(len(original.cells[0]), len(original.cells))
 	first := true
 	var best int
 	var bestPos pos
+	sum := 0
 	secondBestPos := pos{len(original.cells[0]) / 2, len(original.cells) / 2}
 
 	for y, row := range(original.cells) {
 		for x, c := range(row) {
-			timePassed := time.Since(startTime)
-			if timePassed.Seconds() >= timeLimit {
-				break
-			}
 			if c.value == DEAD && c.useful() {
 				// try placing here
 				w := original.clone()
 				w.cells[y][x].value = w.myColor
 				// step forward in time
-				for i := 0; i < 500; i++ {
+				for i := 0; i < stepCount; i++ {
 					w = w.step()
 				}
 				scores := w.score()
 				score := scores[w.myColor] - scores[otherColor[w.myColor]]
-				sg[y][x] = score
+				//sg[y][x] = score
+				sum += score
 				if first || score > best {
 					first = false
 					best = score
@@ -243,10 +236,67 @@ func main () {
 	}
 	if first {
 		// no good move found, use fallback
-		secondBestPos.print()
-	} else {
-		bestPos.print()
-		//fmt.Println("score:", best)
+		return sum, secondBestPos
 	}
-	//sg.print()
+	return sum, bestPos
+
+}
+
+var startTime = time.Now()
+const timeLimit = float64(100) //float64(5.0)
+
+func timeOver() bool {
+	timePassed := time.Since(startTime)
+	return timePassed.Seconds() >= timeLimit
+}
+
+func (w * world) miniMaxMove(stepCount int, turnCount int) (int, pos) {
+	if turnCount == 0 {
+		return w.scoreSum(stepCount)
+	}
+	best := 99999
+	var bestPos pos
+	for y, row := range(w.cells) {
+		for x, c := range(row) {
+			if c.value == DEAD && c.useful() {
+				// set up the board for the next turn
+				nw := w.clone()
+				nw.cells[y][x].value = nw.myColor
+				nw.myColor = otherColor[nw.myColor]
+				sum, _ := nw.miniMaxMove(stepCount, turnCount - 1)
+				// save the move that gives opponent the least chance
+				if sum < best {
+					best = sum
+					bestPos = pos{x, y}
+				}
+			}
+		}
+	}
+	return -best, bestPos
+}
+
+func (w * world) isLastMove() bool {
+	sum := 0
+	for _, row := range(w.cells) {
+		for _, c := range(row) {
+			if c.value == w.myColor {
+				sum += 1
+			}
+		}
+	}
+	return sum == 39
+}
+
+func main () {
+	w, err := readWorld(os.Stdin)
+	if err != nil { panic(err) }
+	var move pos
+	if w.isLastMove() {
+		// just find the most optimal move
+		_, move = w.miniMaxMove(500, 0)
+	} else {
+		// use minimax to limit the opponent's options
+		_, move = w.miniMaxMove(4, 1)
+	}
+	move.print()
 }

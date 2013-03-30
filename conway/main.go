@@ -62,8 +62,12 @@ func (w * world) inBounds(x, y int) bool {
 	return true
 }
 
+var swapWorld * world
+
 func (w * world) step() * world {
-	nw := newWorld(len(w.cells[0]), len(w.cells), w.myColor)
+	nw := swapWorld
+	swapWorld = w
+	nw.myColor = w.myColor
 	for y, row := range(w.cells) {
 		for x, c := range(row) {
 			total := c.neighborCount[WHITE] + c.neighborCount[BLACK]
@@ -289,6 +293,7 @@ func (w * world) isLastMove() bool {
 
 func main () {
 	w, err := readWorld(os.Stdin)
+	swapWorld = w.clone()
 	if err != nil { panic(err) }
 	var move pos
 	if w.isLastMove() {
@@ -296,7 +301,7 @@ func main () {
 		_, move = w.miniMaxMove(500, 0)
 	} else {
 		// use minimax to limit the opponent's options
-		_, move = w.miniMaxMove(4, 1)
+		_, move = w.miniMaxMove(8, 1)
 	}
 	move.print()
 }

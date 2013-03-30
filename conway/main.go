@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"bufio"
+	"time"
 	"os"
 	"io"
 	"strings"
@@ -201,6 +202,9 @@ func readWorld(stream io.Reader) (*world, error) {
 }
 
 func main () {
+	timeLimit := float64(5.0)
+	startTime := time.Now()
+
 	original, err := readWorld(os.Stdin)
 	if err != nil { panic(err) }
 	// try every possibility and check how it performs
@@ -212,6 +216,11 @@ func main () {
 
 	for y, row := range(original.cells) {
 		for x, c := range(row) {
+			timePassed := time.Since(startTime)
+			if timePassed.Seconds() >= timeLimit {
+				fmt.Println("stopping at", y)
+				break
+			}
 			if c.value == DEAD && c.useful() {
 				// try placing here
 				w := original.clone()

@@ -218,7 +218,6 @@ func main () {
 		for x, c := range(row) {
 			timePassed := time.Since(startTime)
 			if timePassed.Seconds() >= timeLimit {
-				fmt.Println("stopping at", y)
 				break
 			}
 			if c.value == DEAD && c.useful() {

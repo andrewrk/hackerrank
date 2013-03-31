@@ -62,30 +62,33 @@ func (w * world) inBounds(x, y int) bool {
 	return true
 }
 
-var swapWorld * world
+func (w * world) step(count int) * world {
+	swapWorld := newWorld(len(w.cells[0]), len(w.cells), w.myColor)
+	nw := w
+	for i := 0; i < count; i++ {
+		tmp := swapWorld
+		swapWorld = nw
+		nw = tmp
+		for y, row := range(swapWorld.cells) {
+			for x, c := range(row) {
+				total := c.neighborCount[WHITE] + c.neighborCount[BLACK]
+				switch {
+				case c.value == DEAD && total == 3:
+					nw.cells[y][x].value = WHITE
+					if c.neighborCount[BLACK] > c.neighborCount[WHITE] {
+						nw.cells[y][x].value = BLACK
+					}
+				case (c.value == WHITE || c.value == BLACK) && total != 2 && total != 3:
+					nw.cells[y][x].value = DEAD
+				default:
+					nw.cells[y][x].value = c.value
 
-func (w * world) step() * world {
-	nw := swapWorld
-	swapWorld = w
-	nw.myColor = w.myColor
-	for y, row := range(w.cells) {
-		for x, c := range(row) {
-			total := c.neighborCount[WHITE] + c.neighborCount[BLACK]
-			switch {
-			case c.value == DEAD && total == 3:
-				nw.cells[y][x].value = WHITE
-				if c.neighborCount[BLACK] > c.neighborCount[WHITE] {
-					nw.cells[y][x].value = BLACK
 				}
-			case (c.value == WHITE || c.value == BLACK) && total != 2 && total != 3:
-				nw.cells[y][x].value = DEAD
-			default:
-				nw.cells[y][x].value = c.value
-
 			}
 		}
+		nw.computeNeighborCounts()
 	}
-	nw.computeNeighborCounts()
+
 	return nw
 }
 
@@ -141,7 +144,6 @@ func (w * world) computeNeighborCounts() {
 	// reset
 	for _, row := range(w.cells) {
 		for x := range(row) {
-			row[x].neighborCount[DEAD] = 0
 			row[x].neighborCount[BLACK] = 0
 			row[x].neighborCount[WHITE] = 0
 		}
@@ -163,15 +165,28 @@ func (w * world) computeNeighborCounts() {
 	}
 }
 
+
+func (w * world) updateCell(x, y, color int) {
+	prev := w.cells[y][x].value
+	w.cells[y][x].value = color
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			nx := x + dx
+			ny := y + dy
+			if (dx != 0 || dy != 0) && w.inBounds(nx, ny) {
+				w.cells[ny][nx].neighborCount[prev] -= 1
+				w.cells[ny][nx].neighborCount[color] += 1
+			}
+		}
+	}
+}
+
 func newWorld(width, height, myColor int) * world {
 	w := new(world)
 	w.myColor = myColor
 	w.cells = make([][]cell, height)
 	for y := range(w.cells) {
 		w.cells[y] = make([]cell, width)
-		for x := range(w.cells[y]) {
-			w.cells[y][x].neighborCount[DEAD] = 8
-		}
 	}
 	return w
 }
@@ -220,11 +235,9 @@ func (original * world) scoreSum(stepCount int) (int, pos) {
 			if c.value == DEAD && c.useful() {
 				// try placing here
 				w := original.clone()
-				w.cells[y][x].value = w.myColor
+				w.updateCell(x, y, w.myColor)
 				// step forward in time
-				for i := 0; i < stepCount; i++ {
-					w = w.step()
-				}
+				w = w.step(stepCount)
 				scores := w.score()
 				score := scores[w.myColor] - scores[otherColor[w.myColor]]
 				//sg[y][x] = score
@@ -243,6 +256,7 @@ func (original * world) scoreSum(stepCount int) (int, pos) {
 		// no good move found, use fallback
 		return sum, secondBestPos
 	}
+	//sg.print()
 	return sum, bestPos
 
 }
@@ -267,7 +281,7 @@ func (w * world) miniMaxMove(stepCount int, turnCount int) (int, pos) {
 			if c.value == DEAD && c.useful() {
 				// set up the board for the next turn
 				nw := w.clone()
-				nw.cells[y][x].value = nw.myColor
+				nw.updateCell(x, y, nw.myColor)
 				nw.myColor = otherColor[nw.myColor]
 				sum, _ := nw.miniMaxMove(stepCount, turnCount - 1)
 				// save the move that gives opponent the least chance
@@ -295,9 +309,9 @@ func (w * world) isLastMove() bool {
 
 func main () {
 	w, err := readWorld(os.Stdin)
-	swapWorld = w.clone()
 	if err != nil { panic(err) }
 	var move pos
+
 	if w.isLastMove() {
 		// just find the most optimal move
 		_, move = w.miniMaxMove(500, 0)

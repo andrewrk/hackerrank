@@ -95,5 +95,14 @@ func readWorld(stream io.Reader) * World {
 
 func main() {
 	w := readWorld(os.Stdin)
-	w.print()
+	if w.myPos.y == 7 {
+		if w.myChar == RED && w.cells[w.myPos.y][w.myPos.x + 1] == EMPTY {
+			fmt.Println("RIGHT")
+			return
+		} else if w.myChar == GREEN && w.cells[w.myPos.y][w.myPos.x - 1] == EMPTY {
+			fmt.Println("LEFT")
+			return
+		}
+	}
+
 }

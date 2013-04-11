@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"bufio"
+	"time"
 	"os"
 	"io"
 	"strings"
@@ -108,12 +109,16 @@ func (w World) ComputeScore(groups []Group) (score Score) {
 	return score
 }
 
-func (w World) ComputeBestMove() (Group, int) {
+func (w World) ComputeBestMove(lookLimit int) (Group, int) {
 	groups := w.ComputeGroups()
 
 	// if the game is over, just return the score
 	score := w.ComputeScore(groups)
 	if score.gameOver {
+		return nil, score.cellsLeft
+	}
+	// shucks, out of time
+	if timeOver() && lookLimit <= -3 {
 		return nil, score.cellsLeft
 	}
 
@@ -125,7 +130,7 @@ func (w World) ComputeBestMove() (Group, int) {
 			continue
 		}
 		w2 := w.Step(g, groups)
-		_, moveScore := w2.ComputeBestMove()
+		_, moveScore := w2.ComputeBestMove(lookLimit - 1)
 		if bestScore == -1 || moveScore < bestScore {
 			bestScore = moveScore
 			bestMove = g
@@ -216,13 +221,21 @@ func NewWorld(width, height int) (w World) {
 	return w
 }
 
+var startTime = time.Now()
+const timeLimit = float64(3) //float64(5.0)
+
+func timeOver() bool {
+	timePassed := time.Since(startTime)
+	return timePassed.Seconds() >= timeLimit
+}
+
 func main () {
 	w := readWorld(os.Stdin)
 	//groups := w.ComputeGroups();
 	//fmt.Println(groups)
 	//nw := w.Step(groups[0], groups);
 	//nw.Print()
-	move, _ := w.ComputeBestMove()
+	move, _ := w.ComputeBestMove(0)
 	move[0].Print()
 }
 

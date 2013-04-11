@@ -55,23 +55,23 @@ func readWorld(stream io.Reader) World {
 	return cells
 }
 
-func (w World) ComputeBestMove() Pos {
-	// identify groups
-	type group []Pos
-	groups := make([]group, 0)
+type Group []Pos
+
+func (w World) ComputeGroups() (groups []Group) {
+	groups = make([]Group, 0)
 	closedCells := NewWorld(len(w[0]), len(w))
 	for y, row := range(w) {
 		for x, c := range(row) {
 			if c == '-' || closedCells[y][x] == 1 {
 				continue
 			}
-			g := group{}
+			g := Group{}
 			openNodes := []Pos{ Pos{x, y} }
 			for len(openNodes) > 0 {
 				// pop openNodes
 				n := openNodes[len(openNodes) - 1]
 				openNodes = openNodes[:len(openNodes) - 1]
-				nodeChar := w[n.y][n.x];
+				nodeChar := w[n.y][n.x]
 				if nodeChar == c {
 					closedCells[n.y][n.x] = 1
 					g = append(g, n)
@@ -88,18 +88,97 @@ func (w World) ComputeBestMove() Pos {
 			groups = append(groups, g)
 		}
 	}
-	fmt.Println(groups)
-	// TODO
-	return Pos{}
+	return groups
 }
 
-func (w World) Step(move Pos) World {
-	// TODO
-	return w
+type Score struct {
+	gameOver bool
+	cellsLeft int
 }
 
-func (w World) Clone() World {
-	nw := NewWorld(len(w[0]), len(w))
+func (w World) ComputeScore(groups []Group) (score Score) {
+	// check if game over
+	score.gameOver = true
+	for _, g := range(groups) {
+		score.cellsLeft += len(g)
+		if len(g) >= 2 {
+			score.gameOver = false
+		}
+	}
+	return score
+}
+
+func (w World) ComputeBestMove() (Group, int) {
+	groups := w.ComputeGroups()
+
+	// if the game is over, just return the score
+	score := w.ComputeScore(groups)
+	if score.gameOver {
+		return nil, score.cellsLeft
+	}
+
+	// for each move, compute score for next move
+	bestScore := -1 // lower is better and -1 is a special-case
+	var bestMove Group
+	for _, g := range(groups) {
+		w2 := w.Step(g, groups)
+		_, moveScore := w2.ComputeBestMove()
+		if bestScore == -1 || moveScore < bestScore {
+			bestScore = moveScore
+			bestMove = g
+		}
+	}
+
+	return bestMove, bestScore
+}
+
+func (w World) Step(move Group, groups []Group) (nw World) {
+	nw = w.Clone()
+	// step 1, remove all the cells from the group
+	for _, p := range(move) {
+		nw[p.y][p.x] = '-'
+	}
+	// step 2, shift cells down
+	for x := 0; x < len(nw[0]); x++ {
+		for y := len(nw) - 1; y >= 1; y-- {
+			if nw[y][x] == '-' {
+				for y2 := y - 1; y2 >= 0; y2-- {
+					if nw[y2][x] != '-' {
+						// swap
+						tmp := nw[y2][x]
+						nw[y2][x] = nw[y][x]
+						nw[y][x] = tmp
+						break
+					}
+				}
+			}
+		}
+	}
+	// step 3, shift cells left
+	for x := 0; x < len(nw[0]) - 1; x++ {
+		emptyColumn := true
+		for y := 0; y < len(nw); y++ {
+			if nw[y][x] != '-' {
+				emptyColumn = false
+				break
+			}
+		}
+		if emptyColumn {
+			for y2 := 0; y2 < len(nw); y2++ {
+				for x2 := x; x2 < len(nw[0]) - 1; x2++ {
+					nw[y2][x2] = nw[y2][x2 + 1]
+				}
+				nw[y2][len(nw[0]) - 1] = '-'
+			}
+			// check the same column again
+			x--;
+		}
+	}
+	return nw
+}
+
+func (w World) Clone() (nw World) {
+	nw = NewWorld(len(w[0]), len(w))
 	for y, row := range(w) {
 		for x, c := range(row) {
 			nw[y][x] = c
@@ -108,8 +187,8 @@ func (w World) Clone() World {
 	return nw
 }
 
-func NewWorld(width, height int) World {
-	w := make([][]uint8, height)
+func NewWorld(width, height int) (w World) {
+	w = make([][]uint8, height)
 	for y := range(w) {
 		w[y] = make([]uint8, width)
 	}
@@ -118,7 +197,7 @@ func NewWorld(width, height int) World {
 
 func main () {
 	w := readWorld(os.Stdin)
-	move := w.ComputeBestMove()
-	move.Print()
+	move, _ := w.ComputeBestMove()
+	move[0].Print()
 }
 

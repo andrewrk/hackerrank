@@ -121,11 +121,17 @@ func (w World) ComputeBestMove() (Group, int) {
 	bestScore := -1 // lower is better and -1 is a special-case
 	var bestMove Group
 	for _, g := range(groups) {
+		if len(g) < 2 {
+			continue
+		}
 		w2 := w.Step(g, groups)
 		_, moveScore := w2.ComputeBestMove()
 		if bestScore == -1 || moveScore < bestScore {
 			bestScore = moveScore
 			bestMove = g
+		}
+		if bestScore == 0 {
+			break
 		}
 	}
 
@@ -164,14 +170,20 @@ func (w World) Step(move Group, groups []Group) (nw World) {
 			}
 		}
 		if emptyColumn {
+			anythingMoved := false
 			for y2 := 0; y2 < len(nw); y2++ {
 				for x2 := x; x2 < len(nw[0]) - 1; x2++ {
 					nw[y2][x2] = nw[y2][x2 + 1]
+					if nw[y2][x2] != '-' {
+						anythingMoved = true
+					}
 				}
 				nw[y2][len(nw[0]) - 1] = '-'
 			}
-			// check the same column again
-			x--;
+			if anythingMoved {
+				// check the same column again
+				x--;
+			}
 		}
 	}
 	return nw
@@ -187,6 +199,15 @@ func (w World) Clone() (nw World) {
 	return nw
 }
 
+func (w World) Print() {
+	for _, row := range(w) {
+		for _, c := range(row) {
+			fmt.Printf("%c", c)
+		}
+		fmt.Print("\n")
+	}
+}
+
 func NewWorld(width, height int) (w World) {
 	w = make([][]uint8, height)
 	for y := range(w) {
@@ -197,6 +218,10 @@ func NewWorld(width, height int) (w World) {
 
 func main () {
 	w := readWorld(os.Stdin)
+	//groups := w.ComputeGroups();
+	//fmt.Println(groups)
+	//nw := w.Step(groups[0], groups);
+	//nw.Print()
 	move, _ := w.ComputeBestMove()
 	move[0].Print()
 }

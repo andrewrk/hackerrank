@@ -1,9 +1,14 @@
 fn main() {
+    let mut stdin = std::io::stdio::stdin();
     let mut sum = 0;
-    for maybe_line in std::io::stdin().lock().lines() {
-        let line = maybe_line.unwrap();
-        let x = line.trim().parse().unwrap();
-        sum += x;
+
+    loop {
+        match stdin.read_line() {
+            Ok(line) => {
+                sum += line.trim().parse().unwrap();
+            }
+            Err(e) => break
+        }
     }
     println!("{}", sum);
 }

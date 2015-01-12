@@ -10,10 +10,8 @@ fn count_deletions(s:&str) -> i32 {
     for c in s.chars() {
         match (&expect, c) {
             (&Expect::B, 'A') | (&Expect::A, 'B') => del_count += 1,
-            (&Expect::A, 'A') => expect = Expect::B,
-            (&Expect::B, 'B') => expect = Expect::A,
-            (&Expect::Any, 'A') => expect = Expect::B,
-            (&Expect::Any, 'B') => expect = Expect::A,
+            (&Expect::A, 'A') | (&Expect::Any, 'A') => expect = Expect::B,
+            (&Expect::B, 'B') | (&Expect::Any, 'B') => expect = Expect::A,
             _ => panic!("invalid character"),
         }
     }
